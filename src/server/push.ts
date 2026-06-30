@@ -131,7 +131,8 @@ export async function scheduleNextReminder(
 
   const [hh, mm] = activity.startTime.split(':').map(Number)
   const [y, mo, d] = targetDate.split('-').map(Number)
-  const notifyAt = new Date(y, mo - 1, d, hh, mm - activity.reminderMinutes)
+  // startTime is in GMT+7; subtract 7 hours to get UTC
+  const notifyAt = new Date(Date.UTC(y, mo - 1, d, hh - 7, mm - activity.reminderMinutes))
 
   // Already passed — recurse to the next occurrence
   if (notifyAt <= now) {

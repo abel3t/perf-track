@@ -40,6 +40,7 @@ function TimelinePage() {
   const view = search.view ?? 'day'
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [trackingOccurrence, setTrackingOccurrence] = useState<any>(null)
+  const [editingActivity, setEditingActivity] = useState<any>(null)
 
   const showForm = search.create === true
   const dateStr = format(currentDate, 'yyyy-MM-dd')
@@ -180,13 +181,15 @@ function TimelinePage() {
       </button>
 
       <ActivityFormSheet
-        key={`${search.prefillTime ?? ''}-${search.prefillDuration ?? 0}`}
-        open={showForm}
-        onClose={closeCreate}
-        defaultDate={search.prefillDate ?? dateStr}
-        prefillTime={search.prefillTime}
-        prefillDuration={search.prefillDuration}
-        onSaved={() => { invalidate(); closeCreate() }}
+        key={editingActivity?.id ?? `${search.prefillTime ?? ''}-${search.prefillDuration ?? 0}`}
+        open={showForm || !!editingActivity}
+        onClose={() => { editingActivity ? setEditingActivity(null) : closeCreate() }}
+        defaultDate={editingActivity ? editingActivity.startDate : (search.prefillDate ?? dateStr)}
+        prefillTime={editingActivity ? undefined : search.prefillTime}
+        prefillDuration={editingActivity ? undefined : search.prefillDuration}
+        activity={editingActivity ?? undefined}
+        onSaved={() => { invalidate(); editingActivity ? setEditingActivity(null) : closeCreate() }}
+        onDelete={() => { invalidate(); setEditingActivity(null) }}
       />
 
       {trackingOccurrence && (
@@ -195,6 +198,7 @@ function TimelinePage() {
           open={!!trackingOccurrence}
           onClose={() => setTrackingOccurrence(null)}
           onSaved={() => { invalidate(); setTrackingOccurrence(null) }}
+          onEdit={() => { setEditingActivity(trackingOccurrence.activity); setTrackingOccurrence(null) }}
         />
       )}
     </div>

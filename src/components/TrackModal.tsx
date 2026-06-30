@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { CheckCircle2, XCircle, Clock, Flame } from 'lucide-react'
+import { CheckCircle2, XCircle, Clock, Flame, Pencil } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '#/components/ui/dialog'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
@@ -35,9 +35,10 @@ interface Props {
   open: boolean
   onClose: () => void
   onSaved: () => void
+  onEdit?: () => void
 }
 
-export default function TrackModal({ occurrence, open, onClose, onSaved }: Props) {
+export default function TrackModal({ occurrence, open, onClose, onSaved, onEdit }: Props) {
   const { activity, log, streak } = occurrence
   const alreadyDone = log?.status === 'completed'
 
@@ -96,7 +97,15 @@ export default function TrackModal({ occurrence, open, onClose, onSaved }: Props
               className="w-3 h-3 rounded-full shrink-0"
               style={{ background: activity.color }}
             />
-            {activity.title}
+            <span className="flex-1">{activity.title}</span>
+            {onEdit && (
+              <button
+                onClick={onEdit}
+                className="p-1.5 rounded-lg hover:bg-[var(--line)] text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)] transition-colors"
+              >
+                <Pencil size={15} />
+              </button>
+            )}
           </DialogTitle>
         </DialogHeader>
 

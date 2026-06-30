@@ -136,8 +136,9 @@ function buildOccurrencesForDate(
 
   return occurring.map((activity) => {
     const [hh, mm] = activity.startTime.split(':').map(Number)
+    // startTime is in GMT+7; shift to UTC for the ISO string the client will parseISO
     const scheduledStart = new Date(
-      targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), hh, mm,
+      Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), hh - 7, mm),
     )
     const scheduledEnd = addMinutes(scheduledStart, activity.plannedDuration)
     return {

@@ -10,7 +10,7 @@ import { Textarea } from '#/components/ui/textarea'
 import { Slider } from '#/components/ui/slider'
 import { Calendar } from '#/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
-import { createActivity, updateActivity } from '#/server/activities'
+import { createActivity, updateActivity, deleteActivity } from '#/server/activities'
 import type { Activity } from '#/db/schema'
 import ResponsiveModal from '#/components/ResponsiveModal'
 
@@ -38,11 +38,12 @@ interface Props {
   prefillTime?: string
   prefillDuration?: number
   onSaved: () => void
+  onDelete?: () => void
   activity?: Activity
 }
 
 export default function ActivityFormSheet({
-  open, onClose, defaultDate, prefillTime, prefillDuration, onSaved, activity,
+  open, onClose, defaultDate, prefillTime, prefillDuration, onSaved, onDelete, activity,
 }: Props) {
   const isEdit = !!activity
 
@@ -101,6 +102,11 @@ export default function ActivityFormSheet({
     onSuccess: () => { onSaved(); onClose() },
   })
 
+  const remove = useMutation({
+    mutationFn: () => deleteActivity({ data: { id: activity!.id } }),
+    onSuccess: () => { onDelete?.(); onClose() },
+  })
+
   function toggleCustomDay(day: string) {
     setCustomDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
@@ -109,13 +115,25 @@ export default function ActivityFormSheet({
 
   const footer = (
     <div className="space-y-2">
-      {save.isError && (
-        <p className="text-sm text-red-500 text-center">{(save.error as Error).message}</p>
+      {(save.isError || remove.isError) && (
+        <p className="text-sm text-red-500 text-center">
+          {((save.error ?? remove.error) as Error).message}
+        </p>
+      )}
+      {isEdit && (
+        <Button
+          variant="outline"
+          className="w-full text-red-500 border-red-200 hover:bg-red-50"
+          onClick={() => remove.mutate()}
+          disabled={remove.isPending || save.isPending}
+        >
+          {remove.isPending ? 'Deleting…' : 'Delete activity'}
+        </Button>
       )}
       <Button
         className="w-full"
         onClick={() => save.mutate()}
-        disabled={!title || save.isPending}
+        disabled={!title || save.isPending || remove.isPending}
       >
         {save.isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Create activity'}
       </Button>
