@@ -2,6 +2,7 @@ import { Link, useRouter } from '@tanstack/react-router'
 import { CalendarDays, BarChart2, LogOut, Zap } from 'lucide-react'
 import { authClient } from '#/lib/auth-client'
 import { Route } from '#/routes/_app'
+import { NotificationToggle } from '#/routes/_app'
 
 const tabs = [
   { to: '/timeline', label: 'Timeline', icon: CalendarDays },
@@ -47,6 +48,9 @@ export default function SideNav() {
         <div className="px-3 py-2">
           <p className="text-xs font-semibold text-[var(--sea-ink)] truncate">{user.name}</p>
           <p className="text-[10px] text-[var(--sea-ink-soft)] truncate">{user.email}</p>
+        </div>
+        <div className="px-3 py-1">
+          <NotificationToggle />
         </div>
         <button
           onClick={handleSignOut}

@@ -76,12 +76,17 @@ export async function sendActivityNotification(activityId: string, scheduledDate
   const activity = await db.query.Activities.findFirst({
     where: and(eq(Activities.id, activityId), isNull(Activities.deletedAt)),
   })
-  if (!activity || !activity.reminderMinutes) return
+  if (!activity || !activity.reminderMinutes) {
+    console.log('[push] activity not found or no reminder', { activityId })
+    return
+  }
 
   const subscriptions = await db
     .select()
     .from(PushSubscriptions)
     .where(eq(PushSubscriptions.userId, activity.userId))
+
+  console.log('[push] found', subscriptions.length, 'subscriptions for user', activity.userId)
 
   for (const sub of subscriptions) {
     try {
@@ -94,7 +99,9 @@ export async function sendActivityNotification(activityId: string, scheduledDate
           url: '/',
         }),
       )
+      console.log('[push] sent to', sub.endpoint.slice(0, 50))
     } catch (err: unknown) {
+      console.error('[push] failed to send:', err)
       if ((err as { statusCode?: number }).statusCode === 410) {
         await db.delete(PushSubscriptions).where(eq(PushSubscriptions.endpoint, sub.endpoint))
       }
@@ -111,6 +118,45 @@ export async function sendActivityNotification(activityId: string, scheduledDate
       .where(eq(Activities.id, activityId))
   }
 }
+
+// ─── Send test push immediately (for debugging) ───────────────────────────────
+
+export const sendTestPush = createServerFn({ method: 'POST' }).handler(async () => {
+  const [{ default: webpush }, db, user] = await Promise.all([
+    import('web-push'),
+    getDb(),
+    requireUser(),
+  ])
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT!,
+    process.env.VAPID_PUBLIC_KEY!,
+    process.env.VAPID_PRIVATE_KEY!,
+  )
+
+  const subscriptions = await db
+    .select()
+    .from(PushSubscriptions)
+    .where(eq(PushSubscriptions.userId, user.id))
+
+  if (subscriptions.length === 0) return { ok: false, reason: 'No subscriptions found' }
+
+  const results: string[] = []
+  for (const sub of subscriptions) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        JSON.stringify({ title: 'Test notification', body: 'Push is working!', url: '/' }),
+      )
+      results.push('sent:' + sub.endpoint.slice(0, 40))
+    } catch (err: unknown) {
+      results.push('error:' + String(err))
+      if ((err as { statusCode?: number }).statusCode === 410) {
+        await db.delete(PushSubscriptions).where(eq(PushSubscriptions.endpoint, sub.endpoint))
+      }
+    }
+  }
+  return { ok: true, results }
+})
 
 // ─── Schedule next reminder via QStash ────────────────────────────────────────
 
