@@ -1,17 +1,20 @@
 import { createServerFn } from '@tanstack/react-start'
 import { and, eq, isNull, lte, gte, or } from 'drizzle-orm'
 import { z } from 'zod'
-import { RRule } from 'rrule'
+import { rruleBetween } from '#/lib/recurrence'
 import { addMinutes, parseISO } from 'date-fns'
 
-import { db } from '#/db'
 import { Activities, ActivityLogs, ActivityStreaks } from '#/db/schema'
-import { auth } from '#/lib/auth'
-import { getRequest } from '@tanstack/react-start/server'
 import { calculateScore } from '#/lib/score'
 import { scheduleNextReminder, cancelReminder } from '#/server/push'
 
+const getDb = async () => import('#/db').then((m) => m.db)
+
 async function requireUser() {
+  const [{ auth }, { getRequest }] = await Promise.all([
+    import('#/lib/auth'),
+    import('@tanstack/react-start/server'),
+  ])
   const req = getRequest()
   const session = await auth.api.getSession({ headers: req.headers })
   if (!session?.user) throw new Error('Unauthorized')
@@ -39,7 +42,7 @@ const activityPayload = z.object({
 
 export const listActivities = createServerFn({ method: 'GET' }).handler(
   async () => {
-    const user = await requireUser()
+    const [db, user] = await Promise.all([getDb(), requireUser()])
     return db
       .select()
       .from(Activities)
@@ -53,7 +56,7 @@ export const listActivities = createServerFn({ method: 'GET' }).handler(
 export const createActivity = createServerFn({ method: 'POST' })
   .validator(activityPayload)
   .handler(async ({ data }) => {
-    const user = await requireUser()
+    const [db, user] = await Promise.all([getDb(), requireUser()])
     const [activity] = await db
       .insert(Activities)
       .values({ ...data, userId: user.id })
@@ -73,7 +76,7 @@ export const createActivity = createServerFn({ method: 'POST' })
 export const updateActivity = createServerFn({ method: 'POST' })
   .validator(activityPayload.extend({ id: z.string().uuid() }))
   .handler(async ({ data }) => {
-    const user = await requireUser()
+    const [db, user] = await Promise.all([getDb(), requireUser()])
     const { id, ...rest } = data
 
     const old = await db.query.Activities.findFirst({
@@ -98,7 +101,7 @@ export const updateActivity = createServerFn({ method: 'POST' })
 export const deleteActivity = createServerFn({ method: 'POST' })
   .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data }) => {
-    const user = await requireUser()
+    const [db, user] = await Promise.all([getDb(), requireUser()])
     const old = await db.query.Activities.findFirst({
       where: and(eq(Activities.id, data.id), eq(Activities.userId, user.id)),
     })
@@ -122,12 +125,11 @@ function buildOccurrencesForDate(
   const occurring = allActivities.filter((a) => {
     if (a.recurrenceType === 'once') return a.startDate === dateStr
     if (!a.rrule) return false
-    const rule = RRule.fromString(a.rrule)
     const dayStart = new Date(
       Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()),
     )
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000)
-    return rule.between(dayStart, dayEnd, true).length > 0
+    return rruleBetween(a.rrule, dayStart, dayEnd).length > 0
   })
 
   const logsForDate = logsByDate.get(dateStr) ?? new Map()
@@ -154,7 +156,7 @@ function buildOccurrencesForDate(
 export const getDayOccurrences = createServerFn({ method: 'GET' })
   .validator(z.object({ date: z.string() }))
   .handler(async ({ data }) => {
-    const user = await requireUser()
+    const [db, user] = await Promise.all([getDb(), requireUser()])
 
     const allActivities = await db
       .select()
@@ -186,7 +188,7 @@ export const getDayOccurrences = createServerFn({ method: 'GET' })
 export const getWeekOccurrences = createServerFn({ method: 'GET' })
   .validator(z.object({ from: z.string(), to: z.string() }))
   .handler(async ({ data }) => {
-    const user = await requireUser()
+    const [db, user] = await Promise.all([getDb(), requireUser()])
 
     const allActivities = await db
       .select()
@@ -249,7 +251,7 @@ const completeInput = z.object({
 export const completeActivity = createServerFn({ method: 'POST' })
   .validator(completeInput)
   .handler(async ({ data }) => {
-    const user = await requireUser()
+    const [db, user] = await Promise.all([getDb(), requireUser()])
 
     const streak = await db.query.ActivityStreaks.findFirst({
       where: and(
@@ -342,7 +344,7 @@ const skipInput = z.object({
 export const skipActivity = createServerFn({ method: 'POST' })
   .validator(skipInput)
   .handler(async ({ data }) => {
-    const user = await requireUser()
+    const [db, user] = await Promise.all([getDb(), requireUser()])
 
     const existingLog = await db.query.ActivityLogs.findFirst({
       where: and(
@@ -390,6 +392,7 @@ export const skipActivity = createServerFn({ method: 'POST' })
   })
 
 async function getMultiplier(activityId: string): Promise<number> {
+  const db = await getDb()
   const activity = await db.query.Activities.findFirst({
     where: eq(Activities.id, activityId),
   })

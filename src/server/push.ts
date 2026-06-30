@@ -1,26 +1,22 @@
 import { createServerFn } from '@tanstack/react-start'
 import { and, eq, isNull } from 'drizzle-orm'
 import { z } from 'zod'
-import webpush from 'web-push'
 import { Client } from '@upstash/qstash'
-import { RRule } from 'rrule'
+import { rruleAfter } from '#/lib/recurrence'
 
-import { db } from '#/db'
 import { Activities, PushSubscriptions } from '#/db/schema'
-import { auth } from '#/lib/auth'
-import { getRequest } from '@tanstack/react-start/server'
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-)
+const getDb = async () => import('#/db').then((m) => m.db)
 
 function qstashClient() {
   return new Client({ token: process.env.QSTASH_TOKEN! })
 }
 
 async function requireUser() {
+  const [{ auth }, { getRequest }] = await Promise.all([
+    import('#/lib/auth'),
+    import('@tanstack/react-start/server'),
+  ])
   const req = getRequest()
   const session = await auth.api.getSession({ headers: req.headers })
   if (!session?.user) throw new Error('Unauthorized')
@@ -44,7 +40,7 @@ const subscribeSchema = z.object({
 export const subscribePush = createServerFn({ method: 'POST' })
   .validator(subscribeSchema)
   .handler(async ({ data }) => {
-    const user = await requireUser()
+    const [db, user] = await Promise.all([getDb(), requireUser()])
     await db
       .insert(PushSubscriptions)
       .values({ userId: user.id, ...data })
@@ -55,12 +51,12 @@ export const subscribePush = createServerFn({ method: 'POST' })
   })
 
 export const unsubscribePush = createServerFn({ method: 'POST' }).handler(async () => {
-  const user = await requireUser()
+  const [db, user] = await Promise.all([getDb(), requireUser()])
   await db.delete(PushSubscriptions).where(eq(PushSubscriptions.userId, user.id))
 })
 
 export const getPushSubscriptionStatus = createServerFn({ method: 'GET' }).handler(async () => {
-  const user = await requireUser()
+  const [db, user] = await Promise.all([getDb(), requireUser()])
   const sub = await db.query.PushSubscriptions.findFirst({
     where: eq(PushSubscriptions.userId, user.id),
   })
@@ -70,6 +66,13 @@ export const getPushSubscriptionStatus = createServerFn({ method: 'GET' }).handl
 // ─── Send push to one activity occurrence ─────────────────────────────────────
 
 export async function sendActivityNotification(activityId: string, scheduledDate: string) {
+  const [{ default: webpush }, db] = await Promise.all([import('web-push'), getDb()])
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT!,
+    process.env.VAPID_PUBLIC_KEY!,
+    process.env.VAPID_PRIVATE_KEY!,
+  )
+
   const activity = await db.query.Activities.findFirst({
     where: and(eq(Activities.id, activityId), isNull(Activities.deletedAt)),
   })
@@ -143,6 +146,7 @@ export async function scheduleNextReminder(
     body: { activityId: activity.id, scheduledDate: targetDate },
   })
 
+  const db = await getDb()
   await db
     .update(Activities)
     .set({ qstashMessageId: response.messageId })
@@ -160,8 +164,6 @@ function resolveNextOccurrenceDate(
 
   if (!activity.rrule) return null
 
-  const rule = RRule.fromString(activity.rrule)
-
   let searchAfter: Date
   if (afterDate) {
     const [y, m, d] = afterDate.split('-').map(Number)
@@ -173,7 +175,7 @@ function resolveNextOccurrenceDate(
     )
   }
 
-  const next = rule.after(searchAfter, false)
+  const next = rruleAfter(activity.rrule, searchAfter)
   return next ? next.toISOString().slice(0, 10) : null
 }
 

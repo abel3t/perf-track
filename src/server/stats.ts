@@ -2,13 +2,16 @@ import { createServerFn } from '@tanstack/react-start'
 import { and, eq, gte, lte, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
-import { db } from '#/db'
 import { Activities, ActivityLogs, ActivityStreaks } from '#/db/schema'
-import { auth } from '#/lib/auth'
-import { getRequest } from '@tanstack/react-start/server'
 import { calculateDayStats } from '#/lib/score'
 
+const getDb = async () => import('#/db').then((m) => m.db)
+
 async function requireUser() {
+  const [{ auth }, { getRequest }] = await Promise.all([
+    import('#/lib/auth'),
+    import('@tanstack/react-start/server'),
+  ])
   const req = getRequest()
   const session = await auth.api.getSession({ headers: req.headers })
   if (!session?.user) throw new Error('Unauthorized')
@@ -20,7 +23,7 @@ async function requireUser() {
 export const getDayStats = createServerFn({ method: 'GET' })
   .validator(z.object({ date: z.string() }))
   .handler(async ({ data }) => {
-    const user = await requireUser()
+    const [db, user] = await Promise.all([getDb(), requireUser()])
 
     const logs = await db
       .select({
@@ -58,7 +61,7 @@ export const getDayStats = createServerFn({ method: 'GET' })
 export const getRangeStats = createServerFn({ method: 'GET' })
   .validator(z.object({ from: z.string(), to: z.string() }))
   .handler(async ({ data }) => {
-    const user = await requireUser()
+    const [db, user] = await Promise.all([getDb(), requireUser()])
 
     const rows = await db
       .select({
@@ -96,7 +99,7 @@ export const getRangeStats = createServerFn({ method: 'GET' })
 // ─── All-time daily stats (for line chart + heatmap) ──────────────────────────
 
 export const getAllTimeStats = createServerFn({ method: 'GET' }).handler(async () => {
-  const user = await requireUser()
+  const [db, user] = await Promise.all([getDb(), requireUser()])
 
   const rows = await db
     .select({
@@ -128,7 +131,7 @@ export const getAllTimeStats = createServerFn({ method: 'GET' }).handler(async (
 
 export const getStreaksSummary = createServerFn({ method: 'GET' }).handler(
   async () => {
-    const user = await requireUser()
+    const [db, user] = await Promise.all([getDb(), requireUser()])
 
     return db
       .select({
