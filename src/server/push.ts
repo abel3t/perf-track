@@ -9,10 +9,7 @@ import { Activities, PushSubscriptions } from '#/db/schema'
 const getDb = async () => import('#/db').then((m) => m.db)
 
 function qstashClient() {
-  return new Client({
-    baseUrl: "https://qstash-us-east-1.upstash.io",
-    token: process.env.QSTASH_TOKEN!
-  })
+  return new Client({ token: process.env.QSTASH_TOKEN! })
 }
 
 async function requireUser() {
@@ -125,17 +122,32 @@ export async function scheduleNextReminder(
 
   const now = new Date()
   const targetDate = resolveNextOccurrenceDate(activity, afterDate, now)
-  if (!targetDate) return
+  if (!targetDate) {
+    console.log('[qstash] no next occurrence for activity', activity.id)
+    return
+  }
 
-  if (activity.endDate && targetDate > activity.endDate) return
+  if (activity.endDate && targetDate > activity.endDate) {
+    console.log('[qstash] target date past endDate', { targetDate, endDate: activity.endDate })
+    return
+  }
 
   const [hh, mm] = activity.startTime.split(':').map(Number)
   const [y, mo, d] = targetDate.split('-').map(Number)
   // startTime is in GMT+7; subtract 7 hours to get UTC
   const notifyAt = new Date(Date.UTC(y, mo - 1, d, hh - 7, mm - activity.reminderMinutes))
 
+  console.log('[qstash] scheduling', {
+    activityId: activity.id,
+    targetDate,
+    notifyAt: notifyAt.toISOString(),
+    now: now.toISOString(),
+    delaySeconds: Math.floor((notifyAt.getTime() - now.getTime()) / 1000),
+  })
+
   // Already passed — recurse to the next occurrence
   if (notifyAt <= now) {
+    console.log('[qstash] notifyAt already passed, skipping')
     if (activity.recurrenceType === 'recurring') {
       await scheduleNextReminder(activity, targetDate)
     }
@@ -143,12 +155,16 @@ export async function scheduleNextReminder(
   }
 
   const delaySeconds = Math.floor((notifyAt.getTime() - now.getTime()) / 1000)
+  const webhookUrl = `${process.env.APP_URL}/api/push/send-one`
+  console.log('[qstash] publishing to', webhookUrl, 'delay', delaySeconds, 's')
 
   const response = await qstashClient().publishJSON({
-    url: `${process.env.APP_URL}/api/push/send-one`,
+    url: webhookUrl,
     delay: delaySeconds,
     body: { activityId: activity.id, scheduledDate: targetDate },
   })
+
+  console.log('[qstash] published', response.messageId)
 
   const db = await getDb()
   await db

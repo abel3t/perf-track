@@ -12,18 +12,22 @@ export const Route = createFileRoute('/api/push/send-one')({
     handlers: {
       POST: async ({ request }) => {
         const body = await request.text()
+        console.log('[send-one] received webhook, body length:', body.length)
 
         try {
           await receiver.verify({
             signature: request.headers.get('Upstash-Signature') ?? '',
             body,
           })
-        } catch {
+        } catch (err) {
+          console.error('[send-one] signature verification failed:', err)
           return new Response('Unauthorized', { status: 401 })
         }
 
         const { activityId, scheduledDate } = JSON.parse(body)
+        console.log('[send-one] sending notification for', { activityId, scheduledDate })
         await sendActivityNotification(activityId, scheduledDate)
+        console.log('[send-one] done')
         return Response.json({ ok: true })
       },
     },
