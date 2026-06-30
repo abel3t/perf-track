@@ -1,0 +1,1 @@
+ALTER TABLE "Activities" ADD COLUMN "qstashMessageId" text;

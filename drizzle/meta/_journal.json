@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1782789738837,
+      "tag": "0000_Initial-migrations",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782793591408,
+      "tag": "0001_push-notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782794232276,
+      "tag": "0002_qstash-message-id",
+      "breakpoints": true
+    }
+  ]
+}
