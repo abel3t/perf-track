@@ -21,8 +21,8 @@ const config = defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Performance Tracker',
-        short_name: 'PerfTrack',
+        name: 'LevelUp',
+        short_name: 'LevelUp',
         description: 'Track daily activities and measure personal performance',
         theme_color: '#173a40',
         background_color: '#e7f3ec',
@@ -35,8 +35,9 @@ const config = defineConfig({
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      injectManifest: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+      devOptions: {
+        enabled: true,
+        type: 'module',
       },
     }),
   ],

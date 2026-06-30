@@ -17,22 +17,53 @@ export const Route = createFileRoute('/_app')({
 })
 
 function NotificationBanner() {
-  const { supported, permission, subscribed, isLoading, subscribe } = usePushNotification()
+  const { supported, permission, subscribed, isLoading, subscribe, error } = usePushNotification()
+
+  const testPush = useMutation({
+    mutationFn: () => sendTestPush(),
+    onSuccess: (res) => {
+      if (!res.ok) alert('No subscription — enable notifications first')
+      else alert('Test sent! Check your notifications.')
+    },
+    onError: (err) => alert('Error: ' + (err as Error).message),
+  })
 
   if (!supported || permission === 'denied') return null
-  if (subscribed) return null
+
+  if (subscribed) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border-b border-[var(--line)] text-sm">
+        <BellIcon size={14} className="text-emerald-600 shrink-0" />
+        <span className="flex-1 text-[var(--sea-ink-soft)]">Notifications enabled</span>
+        <button
+          onClick={() => testPush.mutate()}
+          disabled={testPush.isPending}
+          className="text-xs font-semibold text-emerald-600 cursor-pointer shrink-0"
+        >
+          {testPush.isPending ? 'Sending…' : 'Send test'}
+        </button>
+      </div>
+    )
+  }
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-[var(--lagoon-deep)]/10 border-b border-[var(--line)] text-sm">
-      <BellIcon size={14} className="text-[var(--lagoon-deep)] shrink-0" />
-      <span className="flex-1 text-[var(--sea-ink-soft)]">Enable notifications to get activity reminders</span>
-      <button
-        onClick={subscribe}
-        disabled={isLoading}
-        className="text-xs font-semibold text-[var(--lagoon-deep)] cursor-pointer shrink-0"
-      >
-        {isLoading ? 'Enabling…' : 'Enable'}
-      </button>
+    <div className="flex flex-col border-b border-[var(--line)]">
+      <div className="flex items-center gap-2 px-4 py-2 bg-[var(--lagoon-deep)]/10 text-sm">
+        <BellIcon size={14} className="text-[var(--lagoon-deep)] shrink-0" />
+        <span className="flex-1 text-[var(--sea-ink-soft)]">Enable notifications to get activity reminders</span>
+        <button
+          onClick={subscribe}
+          disabled={isLoading}
+          className="text-xs font-semibold text-[var(--lagoon-deep)] cursor-pointer shrink-0"
+        >
+          {isLoading ? 'Enabling…' : 'Enable'}
+        </button>
+      </div>
+      {error && (
+        <div className="px-4 py-1.5 bg-red-50 text-xs text-red-600">
+          {(error as Error).message}
+        </div>
+      )}
     </div>
   )
 }

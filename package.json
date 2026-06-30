@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "vite dev --port 3000",
     "generate-routes": "tsr generate",
-    "build": "vite build",
+    "build": "vite build && bun run build:sw",
+    "build:sw": "vite build --config vite.sw.config.ts && bun scripts/inject-sw-manifest.mjs",
     "start": "node .output/server/index.mjs",
     "preview": "vite preview",
     "test": "vitest run",
@@ -77,6 +78,7 @@
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
     "vitest": "^4.1.5",
+    "workbox-build": "^7.4.1",
     "workbox-core": "^7.4.1",
     "workbox-precaching": "^7.4.1",
     "workbox-routing": "^7.4.1",
