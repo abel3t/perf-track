@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { and, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, eq, gte, isNull, lte, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { Activities, ActivityLogs, ActivityStreaks } from '#/db/schema'
@@ -38,6 +38,7 @@ export const getDayStats = createServerFn({ method: 'GET' })
         and(
           eq(ActivityLogs.userId, user.id),
           eq(ActivityLogs.scheduledDate, data.date),
+          isNull(Activities.deletedAt),
         ),
       )
 
@@ -78,6 +79,7 @@ export const getRangeStats = createServerFn({ method: 'GET' })
           eq(ActivityLogs.userId, user.id),
           gte(ActivityLogs.scheduledDate, data.from),
           lte(ActivityLogs.scheduledDate, data.to),
+          isNull(Activities.deletedAt),
         ),
       )
       .groupBy(ActivityLogs.scheduledDate)
@@ -111,7 +113,7 @@ export const getAllTimeStats = createServerFn({ method: 'GET' }).handler(async (
     })
     .from(ActivityLogs)
     .innerJoin(Activities, eq(ActivityLogs.activityId, Activities.id))
-    .where(eq(ActivityLogs.userId, user.id))
+    .where(and(eq(ActivityLogs.userId, user.id), isNull(Activities.deletedAt)))
     .groupBy(ActivityLogs.scheduledDate)
     .orderBy(ActivityLogs.scheduledDate)
 
@@ -146,7 +148,11 @@ export const getStreaksSummary = createServerFn({ method: 'GET' }).handler(
       .from(ActivityStreaks)
       .innerJoin(Activities, eq(ActivityStreaks.activityId, Activities.id))
       .where(
-        and(eq(ActivityStreaks.userId, user.id), eq(Activities.recurrenceType, 'recurring')),
+        and(
+          eq(ActivityStreaks.userId, user.id),
+          eq(Activities.recurrenceType, 'recurring'),
+          isNull(Activities.deletedAt),
+        ),
       )
       .orderBy(ActivityStreaks.currentStreak)
   },
