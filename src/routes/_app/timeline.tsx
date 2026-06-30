@@ -40,7 +40,6 @@ function TimelinePage() {
   const view = search.view ?? 'day'
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [trackingOccurrence, setTrackingOccurrence] = useState<any>(null)
-  const [editingActivity, setEditingActivity] = useState<any>(null)
 
   const showForm = search.create === true
   const dateStr = format(currentDate, 'yyyy-MM-dd')
@@ -175,21 +174,19 @@ function TimelinePage() {
       {/* ── FAB ── visible on both mobile and desktop */}
       <button
         onClick={() => openCreate()}
-        className="fixed z-40 bottom-20 md:bottom-6 right-5 w-14 h-14 rounded-full bg-[var(--lagoon-deep)] text-white shadow-lg flex items-center justify-center active:scale-95 hover:opacity-90 transition-all"
+        className="fixed z-40 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:bottom-6 right-5 w-14 h-14 rounded-full bg-[var(--lagoon-deep)] text-white shadow-lg flex items-center justify-center active:scale-95 hover:opacity-90 transition-all"
       >
         <Plus size={26} strokeWidth={2} />
       </button>
 
       <ActivityFormSheet
-        key={editingActivity?.id ?? `${search.prefillTime ?? ''}-${search.prefillDuration ?? 0}`}
-        open={showForm || !!editingActivity}
-        onClose={() => { editingActivity ? setEditingActivity(null) : closeCreate() }}
-        defaultDate={editingActivity ? editingActivity.startDate : (search.prefillDate ?? dateStr)}
-        prefillTime={editingActivity ? undefined : search.prefillTime}
-        prefillDuration={editingActivity ? undefined : search.prefillDuration}
-        activity={editingActivity ?? undefined}
-        onSaved={() => { invalidate(); editingActivity ? setEditingActivity(null) : closeCreate() }}
-        onDelete={() => { invalidate(); setEditingActivity(null) }}
+        key={`${search.prefillTime ?? ''}-${search.prefillDuration ?? 0}`}
+        open={showForm}
+        onClose={closeCreate}
+        defaultDate={search.prefillDate ?? dateStr}
+        prefillTime={search.prefillTime}
+        prefillDuration={search.prefillDuration}
+        onSaved={() => { invalidate(); closeCreate() }}
       />
 
       {trackingOccurrence && (
@@ -198,7 +195,7 @@ function TimelinePage() {
           open={!!trackingOccurrence}
           onClose={() => setTrackingOccurrence(null)}
           onSaved={() => { invalidate(); setTrackingOccurrence(null) }}
-          onEdit={() => { setEditingActivity(trackingOccurrence.activity); setTrackingOccurrence(null) }}
+          onDelete={() => { invalidate(); setTrackingOccurrence(null) }}
         />
       )}
     </div>

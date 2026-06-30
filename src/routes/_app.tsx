@@ -3,9 +3,7 @@ import { getSession } from '#/server/auth'
 import BottomNav from '#/components/BottomNav'
 import SideNav from '#/components/SideNav'
 import { usePushNotification } from '#/hooks/use-push-notification'
-import { useMutation } from '@tanstack/react-query'
-import { BellIcon, BellOffIcon, BellRingIcon } from 'lucide-react'
-import { sendTestPush } from '#/server/push'
+import { BellIcon } from 'lucide-react'
 
 export const Route = createFileRoute('/_app')({
   beforeLoad: async () => {
@@ -19,32 +17,7 @@ export const Route = createFileRoute('/_app')({
 function NotificationBanner() {
   const { supported, permission, subscribed, isLoading, subscribe, error } = usePushNotification()
 
-  const testPush = useMutation({
-    mutationFn: () => sendTestPush(),
-    onSuccess: (res) => {
-      if (!res.ok) alert('No subscription — enable notifications first')
-      else alert('Test sent! Check your notifications.')
-    },
-    onError: (err) => alert('Error: ' + (err as Error).message),
-  })
-
-  if (!supported || permission === 'denied') return null
-
-  if (subscribed) {
-    return (
-      <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border-b border-[var(--line)] text-sm">
-        <BellIcon size={14} className="text-emerald-600 shrink-0" />
-        <span className="flex-1 text-[var(--sea-ink-soft)]">Notifications enabled</span>
-        <button
-          onClick={() => testPush.mutate()}
-          disabled={testPush.isPending}
-          className="text-xs font-semibold text-emerald-600 cursor-pointer shrink-0"
-        >
-          {testPush.isPending ? 'Sending…' : 'Send test'}
-        </button>
-      </div>
-    )
-  }
+  if (!supported || permission === 'denied' || subscribed) return null
 
   return (
     <div className="flex flex-col border-b border-[var(--line)]">
@@ -68,44 +41,6 @@ function NotificationBanner() {
   )
 }
 
-export function NotificationToggle() {
-  const { supported, permission, subscribed, isLoading, subscribe, unsubscribe } =
-    usePushNotification()
-
-  const testPush = useMutation({
-    mutationFn: () => sendTestPush(),
-    onSuccess: (res) => {
-      if (!res.ok) alert('No subscription found — enable notifications first')
-      else alert('Test sent! Check your notifications.')
-    },
-    onError: (err) => alert('Error: ' + (err as Error).message),
-  })
-
-  if (!supported || permission === 'denied') return null
-
-  return (
-    <div className="flex flex-col gap-1">
-      <button
-        onClick={subscribed ? unsubscribe : subscribe}
-        disabled={isLoading}
-        className="flex items-center gap-2 text-sm text-[var(--sea-ink-soft)] cursor-pointer hover:text-[var(--sea-ink)] transition-colors"
-      >
-        {subscribed ? <BellOffIcon size={16} /> : <BellIcon size={16} />}
-        {subscribed ? 'Disable notifications' : 'Enable notifications'}
-      </button>
-      {subscribed && (
-        <button
-          onClick={() => testPush.mutate()}
-          disabled={testPush.isPending}
-          className="flex items-center gap-2 text-sm text-[var(--sea-ink-soft)] cursor-pointer hover:text-[var(--lagoon-deep)] transition-colors"
-        >
-          <BellRingIcon size={16} />
-          {testPush.isPending ? 'Sending…' : 'Test notification'}
-        </button>
-      )}
-    </div>
-  )
-}
 
 function AppShell() {
   return (

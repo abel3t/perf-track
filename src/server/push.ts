@@ -76,17 +76,12 @@ export async function sendActivityNotification(activityId: string, scheduledDate
   const activity = await db.query.Activities.findFirst({
     where: and(eq(Activities.id, activityId), isNull(Activities.deletedAt)),
   })
-  if (!activity || !activity.reminderMinutes) {
-    console.log('[push] activity not found or no reminder', { activityId })
-    return
-  }
+  if (!activity || !activity.reminderMinutes) return
 
   const subscriptions = await db
     .select()
     .from(PushSubscriptions)
     .where(eq(PushSubscriptions.userId, activity.userId))
-
-  console.log('[push] found', subscriptions.length, 'subscriptions for user', activity.userId)
 
   for (const sub of subscriptions) {
     try {
@@ -99,7 +94,6 @@ export async function sendActivityNotification(activityId: string, scheduledDate
           url: '/',
         }),
       )
-      console.log('[push] sent to', sub.endpoint.slice(0, 50))
     } catch (err: unknown) {
       console.error('[push] failed to send:', err)
       if ((err as { statusCode?: number }).statusCode === 410) {
@@ -119,45 +113,6 @@ export async function sendActivityNotification(activityId: string, scheduledDate
   }
 }
 
-// ─── Send test push immediately (for debugging) ───────────────────────────────
-
-export const sendTestPush = createServerFn({ method: 'POST' }).handler(async () => {
-  const [{ default: webpush }, db, user] = await Promise.all([
-    import('web-push'),
-    getDb(),
-    requireUser(),
-  ])
-  webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT!,
-    process.env.VAPID_PUBLIC_KEY!,
-    process.env.VAPID_PRIVATE_KEY!,
-  )
-
-  const subscriptions = await db
-    .select()
-    .from(PushSubscriptions)
-    .where(eq(PushSubscriptions.userId, user.id))
-
-  if (subscriptions.length === 0) return { ok: false, reason: 'No subscriptions found' }
-
-  const results: string[] = []
-  for (const sub of subscriptions) {
-    try {
-      await webpush.sendNotification(
-        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        JSON.stringify({ title: 'Test notification', body: 'Push is working!', url: '/' }),
-      )
-      results.push('sent:' + sub.endpoint.slice(0, 40))
-    } catch (err: unknown) {
-      results.push('error:' + String(err))
-      if ((err as { statusCode?: number }).statusCode === 410) {
-        await db.delete(PushSubscriptions).where(eq(PushSubscriptions.endpoint, sub.endpoint))
-      }
-    }
-  }
-  return { ok: true, results }
-})
-
 // ─── Schedule next reminder via QStash ────────────────────────────────────────
 
 export async function scheduleNextReminder(
@@ -168,32 +123,17 @@ export async function scheduleNextReminder(
 
   const now = new Date()
   const targetDate = resolveNextOccurrenceDate(activity, afterDate, now)
-  if (!targetDate) {
-    console.log('[qstash] no next occurrence for activity', activity.id)
-    return
-  }
+  if (!targetDate) return
 
-  if (activity.endDate && targetDate > activity.endDate) {
-    console.log('[qstash] target date past endDate', { targetDate, endDate: activity.endDate })
-    return
-  }
+  if (activity.endDate && targetDate > activity.endDate) return
 
   const [hh, mm] = activity.startTime.split(':').map(Number)
   const [y, mo, d] = targetDate.split('-').map(Number)
   // startTime is in GMT+7; subtract 7 hours to get UTC
   const notifyAt = new Date(Date.UTC(y, mo - 1, d, hh - 7, mm - activity.reminderMinutes))
 
-  console.log('[qstash] scheduling', {
-    activityId: activity.id,
-    targetDate,
-    notifyAt: notifyAt.toISOString(),
-    now: now.toISOString(),
-    delaySeconds: Math.floor((notifyAt.getTime() - now.getTime()) / 1000),
-  })
-
   // Already passed — recurse to the next occurrence
   if (notifyAt <= now) {
-    console.log('[qstash] notifyAt already passed, skipping')
     if (activity.recurrenceType === 'recurring') {
       await scheduleNextReminder(activity, targetDate)
     }
@@ -202,15 +142,12 @@ export async function scheduleNextReminder(
 
   const delaySeconds = Math.floor((notifyAt.getTime() - now.getTime()) / 1000)
   const webhookUrl = `${process.env.APP_URL}/api/push/send-one`
-  console.log('[qstash] publishing to', webhookUrl, 'delay', delaySeconds, 's')
 
   const response = await qstashClient().publishJSON({
     url: webhookUrl,
     delay: delaySeconds,
     body: { activityId: activity.id, scheduledDate: targetDate },
   })
-
-  console.log('[qstash] published', response.messageId)
 
   const db = await getDb()
   await db

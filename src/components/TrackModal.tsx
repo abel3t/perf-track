@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { CheckCircle2, XCircle, Clock, Flame, Pencil } from 'lucide-react'
+import { CheckCircle2, XCircle, Clock, Flame, Trash2, X } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '#/components/ui/dialog'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import { Textarea } from '#/components/ui/textarea'
-import { completeActivity, skipActivity } from '#/server/activities'
+import { completeActivity, skipActivity, deleteActivity } from '#/server/activities'
 import { calculateScore, formatScore } from '#/lib/score'
 
 interface Occurrence {
@@ -35,13 +35,14 @@ interface Props {
   open: boolean
   onClose: () => void
   onSaved: () => void
-  onEdit?: () => void
+  onDelete?: () => void
 }
 
-export default function TrackModal({ occurrence, open, onClose, onSaved, onEdit }: Props) {
+export default function TrackModal({ occurrence, open, onClose, onSaved, onDelete }: Props) {
   const { activity, log, streak } = occurrence
   const alreadyDone = log?.status === 'completed'
 
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [actualDuration, setActualDuration] = useState(
     log?.actualDuration ?? activity.plannedDuration,
   )
@@ -57,6 +58,11 @@ export default function TrackModal({ occurrence, open, onClose, onSaved, onEdit 
     onTime,
     currentStreak,
     consecutiveSkips,
+  })
+
+  const remove = useMutation({
+    mutationFn: () => deleteActivity({ data: { id: activity.id } }),
+    onSuccess: () => { onClose(); onDelete?.() },
   })
 
   const complete = useMutation({
@@ -90,22 +96,51 @@ export default function TrackModal({ occurrence, open, onClose, onSaved, onEdit 
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-sm mx-auto rounded-2xl px-5">
-        <DialogHeader>
+      <DialogContent className="max-w-sm mx-auto rounded-2xl px-5" showCloseButton={false}>
+        {/* Toolbar — Google Calendar style: icons top-right, no absolute overlap */}
+        <div className="flex items-center justify-end gap-1 -mt-1 -mr-1">
+          {deleteConfirm ? (
+            <>
+              <span className="text-xs text-[var(--sea-ink-soft)] mr-1">Delete?</span>
+              <button
+                onClick={() => remove.mutate()}
+                disabled={remove.isPending}
+                className="px-2 py-1 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+              >
+                {remove.isPending ? '…' : 'Yes'}
+              </button>
+              <button
+                onClick={() => setDeleteConfirm(false)}
+                className="p-1.5 rounded-lg hover:bg-[var(--line)] text-[var(--sea-ink-soft)] transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setDeleteConfirm(true)}
+                className="p-1.5 rounded-lg hover:bg-[var(--line)] text-[var(--sea-ink-soft)] hover:text-red-400 transition-colors cursor-pointer"
+              >
+                <Trash2 size={16} />
+              </button>
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded-lg hover:bg-[var(--line)] text-[var(--sea-ink-soft)] transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </>
+          )}
+        </div>
+
+        <DialogHeader className="-mt-2">
           <DialogTitle className="flex items-center gap-2">
             <span
               className="w-3 h-3 rounded-full shrink-0"
               style={{ background: activity.color }}
             />
-            <span className="flex-1">{activity.title}</span>
-            {onEdit && (
-              <button
-                onClick={onEdit}
-                className="p-1.5 rounded-lg hover:bg-[var(--line)] text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)] transition-colors"
-              >
-                <Pencil size={15} />
-              </button>
-            )}
+            {activity.title}
           </DialogTitle>
         </DialogHeader>
 
@@ -205,6 +240,7 @@ export default function TrackModal({ occurrence, open, onClose, onSaved, onEdit 
               {complete.isPending ? 'Saving…' : alreadyDone ? 'Update' : 'Complete'}
             </Button>
           </div>
+
         </div>
       </DialogContent>
     </Dialog>
