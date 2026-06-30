@@ -9,7 +9,10 @@ import { Activities, PushSubscriptions } from '#/db/schema'
 const getDb = async () => import('#/db').then((m) => m.db)
 
 function qstashClient() {
-  return new Client({ token: process.env.QSTASH_TOKEN! })
+  return new Client({
+    baseUrl: "https://qstash-us-east-1.upstash.io",
+    token: process.env.QSTASH_TOKEN!
+  })
 }
 
 async function requireUser() {
